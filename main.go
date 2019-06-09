@@ -18,10 +18,12 @@ import (
 )
 
 type runtimeInfo struct {
-	inDir    string
-	outDir   string
-	template *template.Template
-	files    []string
+	inDir                string
+	outDir               string
+	dummyRun             bool
+	template             *template.Template
+	files                []string
+	filesToTemplateNames map[string]string
 }
 
 var runInfo runtimeInfo
@@ -34,6 +36,7 @@ func parseFlags() {
 
 	inDir := flag.String("in", dir, "input directory")
 	outDir := flag.String("out", dir, "output directory")
+	test := flag.Bool("test", false, "parse and execute but do not actually write anything")
 
 	flag.Parse()
 
@@ -43,6 +46,15 @@ func parseFlags() {
 
 	runInfo.inDir = *inDir
 	runInfo.outDir = *outDir
+	runInfo.dummyRun = *test
+}
+
+func filenameToTemplateName(fname string) string {
+	fname, err := filepath.Rel(runInfo.inDir, fname)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return filepath.ToSlash(fname)
 }
 
 func initializeTemplate() {
@@ -101,14 +113,10 @@ func initializeTemplate() {
 		return !isInOut && !fileInfo.IsDir() && funk.ContainsString(extensions, filepath.Ext(s))
 	})...)
 
+	runInfo.filesToTemplateNames = make(map[string]string)
 	runInfo.template = template.New("main").Funcs(funcMap)
 	for i, fname := range runInfo.files {
-		fname, err := filepath.Rel(runInfo.inDir, fname)
-		if err != nil {
-			log.Fatal(err)
-		}
-		fname = filepath.ToSlash(fname)
-
+		fname = filenameToTemplateName(fname)
 		b, err := ioutil.ReadFile(runInfo.files[i])
 		if err != nil {
 			log.Fatal(err)
@@ -133,12 +141,17 @@ func chewUp() {
 	})
 
 	for _, fname := range mainFiles {
-		fname, err := filepath.Rel(runInfo.inDir, fname)
-		if err != nil {
-			log.Fatal(err)
-		}
+		fname = filenameToTemplateName(fname)
 		outPath := filepath.Join(runInfo.outDir, fname)
 		log.Println("Processing", fname)
+
+		if runInfo.dummyRun {
+			err := runInfo.template.ExecuteTemplate(ioutil.Discard, fname, struct{}{})
+			if err != nil {
+				log.Fatal(err)
+			}
+			continue
+		}
 
 		os.MkdirAll(filepath.Dir(outPath), os.ModePerm)
 
