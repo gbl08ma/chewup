@@ -28,7 +28,7 @@ Each `.html` file will be executed, with the result (over)writing the correspond
 
 You can use the `-test` flag to check the syntax of the input without damaging good output files from a previous run.
 
-## Chew-specific template features
+## Chewup-specific template features
 
 To pass multiple values in template invocations, Chewup includes a `dict` template function.
 
